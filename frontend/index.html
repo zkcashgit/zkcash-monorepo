@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ZKCash — DApp</title>
+<!-- web3.js for VersionedTransaction -->
+<script src="https://unpkg.com/@solana/web3.js@1.93.1/lib/index.iife.min.js"></script>
+<style>
+  :root{
+    --bg:#f7f9ff; --ink:#0b1220; --muted:#667085;
+    --blue:#1f7ae0; --blue2:#5aa7ff; --orange:#ff7a18;
+    --ok:#16a34a; --bad:#ef4444; --ring:rgba(31,122,224,.18);
+  }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{
+    margin:0; color:var(--ink);
+    font-family:ui-sans-serif,system-ui,Inter,Segoe UI,Roboto;
+    background:
+      radial-gradient(800px 420px at 84% -10%, rgba(90,167,255,.20), transparent 60%),
+      radial-gradient(900px 520px at -10% 10%, rgba(255,122,24,.12), transparent 60%),
+      linear-gradient(180deg,#fbfdff,#f7f9ff);
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:20px}
+  .hero{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:10px}
+  .logo{width:36px;height:36px;border-radius:10px;background:radial-gradient(circle at 30% 30%,var(--blue2),var(--blue))}
+  h1{margin:0;font-size:22px}
+  .pill{padding:8px 12px;border:1px solid var(--ring);border-radius:999px;background:#fff;color:#0f2a4a}
+  .pill.ok{background:#f1fff5;color:var(--ok);border-color:rgba(22,163,74,.25)}
+  .pill.bad{background:#fff4f4;color:var(--bad);border-color:rgba(239,68,68,.25)}
+  .btn{display:inline-flex;align-items:center;gap:10px;padding:12px 16px;border-radius:12px;cursor:pointer;color:#fff;
+       background:linear-gradient(90deg,var(--blue),var(--blue2));border:1px solid rgba(31,122,224,.35);
+       transition:transform .15s ease,padding .2s ease,box-shadow .2s ease,opacity .2s ease}
+  .btn:hover{transform:translateY(-1px);padding-right:22px;box-shadow:0 10px 28px rgba(31,122,224,.25)}
+  .btn.secondary{color:var(--ink);background:#fff;border-color:rgba(255,122,24,.35)}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+  .grid{display:grid;grid-template-columns:1fr;gap:16px;margin-top:12px}
+  .card{background:#fff;border:1px solid rgba(15,42,74,.08);border-radius:16px;padding:18px;box-shadow:0 12px 40px rgba(31,122,224,.06)}
+  .title{font-weight:800;margin:0 0 10px}
+  .hint{color:var(--muted);font-size:13px;margin:6px 0 12px}
+  .row{display:grid;grid-template-columns:220px 1fr;gap:12px;align-items:center;padding:8px 0}
+  @media (max-width:720px){ .row{grid-template-columns:1fr} }
+  input,select{width:100%;padding:12px;border-radius:12px;border:1px solid rgba(15,42,74,.14);outline:none}
+  input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(31,122,224,.15)}
+  .chip{display:inline-flex;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid rgba(15,42,74,.12);
+        background:linear-gradient(90deg,rgba(31,122,224,.10),rgba(255,122,24,.10))}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,Monaco,"Courier New",monospace}
+  .divider{height:1px;background:linear-gradient(90deg,transparent,rgba(31,122,224,.35),transparent);margin:12px 0}
+  .quoteBox{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media (max-width:720px){ .quoteBox{grid-template-columns:1fr} }
+  footer{color:var(--muted);text-align:center;font-size:12px;padding:26px 0}
+  .toast{position:fixed;right:16px;bottom:16px;background:#0b1220;color:#fff;padding:12px 14px;border-radius:12px;display:none}
+  .toast.show{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div class="brand">
+      <div class="logo"></div>
+      <h1>ZKCash — DApp</h1>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button id="connect" class="btn">Connect Phantom</button>
+      <span id="connPill" class="pill">Backend: checking…</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- Swap Card (Solana + Jupiter) -->
+    <section class="card" id="swap">
+      <h3 class="title">🔁 Swap (Solana via Jupiter)</h3>
+      <p class="hint">Non-custodial — you sign the transaction in Phantom. Destination wallet optional.</p>
+
+      <div class="row"><div>From Token</div><div><select id="fromToken"></select></div></div>
+      <div class="row"><div>Amount</div><div><input id="amount" type="number" step="0.000001" placeholder="0.00"></div></div>
+      <div class="row"><div>To Token</div><div><select id="toToken"></select></div></div>
+      <div class="row"><div>Destination Wallet (optional)</div><div><input id="dest" class="mono" placeholder="If empty, sends back to your wallet"></div></div>
+
+      <div class="divider"></div>
+
+      <div class="quoteBox">
+        <div class="chip mono" id="walletInfo">Wallet: —</div>
+        <div class="chip mono" id="routeInfo">Quote: —</div>
+      </div>
+
+      <div class="divider"></div>
+      <div style="display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap">
+        <button id="getQuote" class="btn secondary">Get Quote</button>
+        <button id="doSwap" class="btn" disabled>Swap Now</button>
+        <span class="hint">Slippage default 0.5% (configurable on backend)</span>
+      </div>
+    </section>
+
+    <!-- Confirmations -->
+    <section class="card">
+      <h3 class="title">🛡️ Confirmation</h3>
+      <div id="log" class="hint mono">No swaps yet.</div>
+    </section>
+  </div>
+
+  <footer>© <span id="year"></span> ZKCash. Privacy by default — transparency by proof.</footer>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const API = 'https://zkcash-backend.onrender.com/api';
+const $ = s=>document.querySelector(s);
+const toast = (m,ms=2200)=>{ const t=$("#toast"); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), ms); };
+
+let TOKENS=[], fromSel=$('#fromToken'), toSel=$('#toToken');
+let quote=null, wallet=null;
+
+function short(addr){ return addr? addr.slice(0,4)+'…'+addr.slice(-4):'—'; }
+function uiAmountToInteger(amount, decimals){
+  const [a,b=''] = String(amount).split('.');
+  const frac = (b + '0'.repeat(decimals)).slice(0,decimals);
+  return BigInt(a + frac);
+}
+function fmt(n,dec=6){ try{ return Number(n).toLocaleString(undefined,{maximumFractionDigits:dec}); }catch{ return n } }
+
+async function getTokens(){
+  try{
+    const r = await fetch(API+'/tokens'); const j = await r.json();
+    TOKENS = (j.tokens||[]).filter(t => t.decimals!=null && t.mint);
+  }catch{ TOKENS = []; }
+  if(!TOKENS.length){
+    TOKENS = [
+      { symbol:'SOL', mint:'So11111111111111111111111111111111111111112', decimals:9 },
+      { symbol:'USDC', mint:'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt', decimals:6 },
+      { symbol:'USDT', mint:'Es9vMFrzaCERZ6k6pG7G1Hh9u1Cq6qj7pG1j1iGkXUz', decimals:6 }
+    ];
+  }
+  const opts = TOKENS.map(t=>`<option value="${t.mint}" data-dec="${t.decimals}">${t.symbol}</option>`).join('');
+  fromSel.innerHTML = opts; toSel.innerHTML = opts;
+  // default SOL -> USDC
+  fromSel.value = TOKENS.find(t=>t.symbol==='SOL')?.mint || TOKENS[0].mint;
+  toSel.value   = TOKENS.find(t=>t.symbol==='USDC')?.mint || TOKENS[1].mint;
+}
+
+async function checkBackend(){
+  const pill = $('#connPill');
+  try{ const r = await fetch(API+'/health',{cache:'no-store'}); if(r.ok){ const h=await r.json(); pill.textContent='Backend: connected'; pill.classList.add('ok'); return; } }catch{}
+  pill.textContent='Backend: unreachable'; pill.classList.add('bad');
+}
+
+async function connectPhantom(){
+  const p = window.solana && window.solana.isPhantom ? window.solana : null;
+  if(!p){ window.open('https://phantom.app/', '_blank'); return; }
+  try{
+    const resp = await p.connect(); wallet = resp.publicKey.toBase58();
+    $('#walletInfo').textContent = 'Wallet: '+ short(wallet);
+    $('#connect').textContent = 'Connected';
+    toast('Phantom connected');
+  }catch(e){ toast('Connect rejected'); }
+}
+
+async function getQuote(){
+  if(!wallet){ toast('Connect Phantom first'); return; }
+  const amt = parseFloat($('#amount').value);
+  if(!amt || amt<=0){ toast('Enter amount'); return; }
+  const inputMint = fromSel.value, outputMint = toSel.value;
+  if(inputMint===outputMint){ toast('Choose different tokens'); return; }
+  const inToken = TOKENS.find(t=>t.mint===inputMint);
+  const integerAmount = uiAmountToInteger(amt, inToken.decimals).toString();
+
+  const url = new URL(API+'/quote'); url.searchParams.set('inputMint', inputMint);
+  url.searchParams.set('outputMint', outputMint); url.searchParams.set('amount', integerAmount);
+  const r = await fetch(url.toString(), { cache:'no-store' });
+  const j = await r.json();
+  if(!r.ok){ toast('Quote failed'); return; }
+  if(!j || !j.outAmount){ toast('No route'); return; }
+  quote = j;
+  const outToken = TOKENS.find(t=>t.mint===outputMint);
+  const outUi = Number(j.outAmount) / (10 ** outToken.decimals);
+  $('#routeInfo').textContent = `Quote: ~ ${fmt(outUi)} ${outToken.symbol} • routes: ${j.routes?.length||1}`;
+  $('#doSwap').disabled = false;
+}
+
+async function doSwap(){
+  if(!quote || !wallet){ toast('Get quote first'); return; }
+  $('#doSwap').disabled = true;
+
+  const body = {
+    quoteResponse: quote,
+    userPublicKey: wallet,
+    wrapAndUnwrapSol: true
+  };
+  const dest = $('#dest').value.trim();
+  if(dest) body.destinationWallet = dest;
+
+  let base64Tx;
+  try{
+    const r = await fetch(API+'/swap', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) });
+    const j = await r.json();
+    if(!r.ok || !j.swapTransaction){ console.log(j); toast('Build swap failed'); $('#doSwap').disabled=false; return; }
+    base64Tx = j.swapTransaction;
+  }catch(e){ toast('Swap request failed'); $('#doSwap').disabled=false; return; }
+
+  try{
+    const tx = solanaWeb3.VersionedTransaction.deserialize(Buffer.from(base64Tx, 'base64'));
+    const { signature } = await window.solana.signAndSendTransaction(tx);
+    log(`Sent: <a href="https://solscan.io/tx/${signature}" target="_blank" rel="noopener">${signature}</a>`);
+    // optional poll status
+    pollStatus(signature);
+  }catch(e){
+    console.error(e);
+    toast('User rejected or send failed');
+  }finally{
+    $('#doSwap').disabled = false;
+  }
+}
+
+async function pollStatus(sig){
+  try{
+    const r = await fetch(API+'/tx/'+sig);
+    const j = await r.json();
+    const st = j?.value?.confirmationStatus || 'pending';
+    log(`Status: ${st}`);
+    if(st!=='confirmed' && st!=='finalized'){ setTimeout(()=>pollStatus(sig), 4000); }
+  }catch(_){}
+}
+
+function log(html){
+  const L = $('#log');
+  if(L.innerHTML.includes('No swaps yet')) L.innerHTML='';
+  L.innerHTML = `<div>${html}</div>` + L.innerHTML;
+}
+
+document.getElementById('year').textContent = new Date().getFullYear();
+document.getElementById('connect').addEventListener('click', connectPhantom);
+document.getElementById('getQuote').addEventListener('click', getQuote);
+document.getElementById('doSwap').addEventListener('click', doSwap);
+
+checkBackend(); getTokens();
+</script>
+</body>
+</html>
